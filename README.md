@@ -82,4 +82,5 @@ Verify file transfers using checksum verification.
 #### cleanup
 
 _(default: True)_
+
 Clean up empty folders and other unnecessary files.

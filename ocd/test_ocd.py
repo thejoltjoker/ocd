@@ -264,7 +264,6 @@ class TestJobs(TestCase):
         self.assertIsNotNone(job.get('verify'))
         self.assertIsNotNone(job.get('cleanup'))
 
-
     def test_files_paths(self):
         self.fail()
 
@@ -274,12 +273,8 @@ class TestJobs(TestCase):
     def test_organize_files(self):
         self.fail()
 
-
-class Test(TestCase):
     def test_organize_folders(self):
         self.fail()
 
-
-class Test(TestCase):
     def test_job_prefix(self):
         self.fail()

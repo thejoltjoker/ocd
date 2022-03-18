@@ -148,6 +148,16 @@ def get_job_attributes(job):
     if not job.get('cleanup'):
         job['cleanup'] = True
 
+    # Check cleanup settings
+    if not job.get('pattern'):
+        job['pattern'] = '*'
+
+    # Print attributes to log
+    prefix = job_prefix(job)
+    logging.debug(f'{prefix} Job attributes')
+    for attr in job.keys():
+        logging.debug(f'{prefix} {attr.title()}: {job[attr]}')
+
     return job
 
 
@@ -163,14 +173,29 @@ def files_paths(paths):
     return files
 
 
+def sort_paths(paths):
+    """Returns a list ordered by path length"""
+    output = []
+    longest = 0
+    for path in paths:
+        length = len(str(path.resolve()))
+        if length >= longest:
+            output.insert(0, path)
+            longest = length
+        else:
+            output.insert(len(output), path)
+
+    return output
+
+
 def run_job(**job):
     # Get attributes and check if the job is valid
+    logging.info(f'Running job: {job.get("name")}')
     job = get_job_attributes(job)
+
     if not job:
         logging.info(f'Job failed: {job.get("name")}')
         return None
-
-    logging.info(f'Running job: {job["name"]}')
 
     # Setup paths
     job_source = job['source']
@@ -181,7 +206,25 @@ def run_job(**job):
     if job['target'] == 'files' or job['target'] == 'both':
         organize_files(job, files)
     if job['target'] == 'folders' or job['target'] == 'both':
-        organize_folders(job, folders)
+        organize_folders(job, sort_paths(folders))
+
+    # Run sub jobs
+    if job.get('jobs'):
+        for j in job['jobs']:
+            # Inherit settings from current job
+            for k in job.keys():
+
+                # Concatenate job names
+                if k == 'name':
+                    j[k] = ':'.join([job['name'], j.get('name', '')])
+
+                # Skip subjobs
+                elif k == 'jobs':
+                    continue
+                # Inherit
+                if not j.get(k):
+                    j[k] = job[k]
+            run_job(**j)
 
 
 def job_prefix(job):
@@ -295,10 +338,15 @@ def get_paths(path: Path, pattern='*', subdirs=False):
     Returns:
         list: list of Path objects
     """
+    paths = []
     if subdirs:
         pattern = f'**/{pattern}'
-
-    return [x for x in path.glob(pattern)]
+    if isinstance(pattern, list):
+        for p in pattern:
+            paths.extend([x for x in path.glob(p)])
+    else:
+        paths = [x for x in path.glob(pattern)]
+    return paths
 
 
 def verify_checksums(path_a, path_b):
@@ -355,7 +403,11 @@ def move(source: Path, destination: Path, verify=False):
     destination.parent.mkdir(parents=True, exist_ok=True)
 
     # Copy file
-    shutil.copy2(source, destination)
+    if source.is_file():
+        shutil.copy2(source, destination)
+    elif source.is_dir():
+        destination.mkdir(parents=True, exist_ok=True)
+
     if verify:
         if verify_checksums(source, destination):
             logging.debug(f'{source} -> {destination} | Successful, verified')
